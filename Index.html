@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1b1f24; --muted: #5c6670; --line: #dde1e6;
+    --brand: #1f6feb; --brand-text: #ffffff;
+    --ok-bg: #e7f6ec; --ok-text: #135c2c; --ok-line: #9fd8b1;
+    --warn-bg: #fff4dc; --warn-text: #6b4800; --warn-line: #f0cf86;
+    --err-bg: #fde8e8; --err-text: #8a1c1c; --err-line: #f1a9a9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --card: #1b2026; --text: #e8ecf0; --muted: #9aa5b1; --line: #2e353d;
+      --brand: #4c8dff; --brand-text: #0b0f14;
+      --ok-bg: #12301d; --ok-text: #9fe0b4; --ok-line: #24583a;
+      --warn-bg: #33270b; --warn-text: #f3d48c; --warn-line: #5e4a1a;
+      --err-bg: #3a1616; --err-text: #f4b0b0; --err-line: #6a2a2a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 17px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+    max-width: 520px; margin: 0 auto;
+  }
+  h1 { font-size: 22px; margin: 4px 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; min-height: 54px; padding: 12px 16px; border-radius: 12px;
+    font: inherit; font-weight: 600; border: 1px solid var(--brand); cursor: pointer;
+    background: var(--brand); color: var(--brand-text);
+  }
+  .btn.secondary { background: transparent; color: var(--brand); }
+  .btn:disabled { opacity: .5; }
+  .btn + .btn { margin-top: 10px; }
+  input[type=file] { display: none; }
+  label.field { display: block; font-size: 15px; color: var(--muted); margin: 14px 0 6px; }
+  input.text {
+    width: 100%; min-height: 50px; padding: 10px 12px; font: inherit; font-size: 20px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text);
+  }
+  #idInput { letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+  #preview { width: 100%; border-radius: 10px; display: none; margin-bottom: 12px; }
+  .status { font-size: 15px; color: var(--muted); min-height: 1.4em; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .chip {
+    min-height: 40px; padding: 6px 14px; border-radius: 20px; font: inherit; font-size: 16px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer;
+  }
+  .chip[aria-pressed=true] { border-color: var(--brand); color: var(--brand); font-weight: 600; }
+  .notice { border-radius: 14px; padding: 16px; margin-bottom: 16px; border: 1px solid; display: none; }
+  .notice h2 { margin: 0 0 4px; font-size: 20px; }
+  .notice p { margin: 0; }
+  .notice.ok { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-line); }
+  .notice.warn { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-line); }
+  .notice.err { background: var(--err-bg); color: var(--err-text); border-color: var(--err-line); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <h1>Student ID scan</h1>
+
+  <div id="notice" class="notice" role="status" aria-live="polite"></div>
+
+  <div class="card">
+    <img id="preview" alt="Photo of the scanned card">
+    <label class="btn" id="scanBtn" for="camera">Scan card</label>
+    <input id="camera" type="file" accept="image/*" capture="environment">
+    <p class="status" id="ocrStatus">Hold the card flat, fill the frame, avoid glare.</p>
+  </div>
+
+  <div class="card" id="form">
+    <label class="field" for="idInput">Student ID</label>
+    <input class="text" id="idInput" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan or type">
+    <div class="chips" id="chips"></div>
+
+    <label class="field" for="nameInput">Name (optional)</label>
+    <input class="text" id="nameInput" autocomplete="off" autocapitalize="words">
+
+    <div style="height:16px"></div>
+    <button class="btn" id="saveBtn" type="button" disabled>Check and save</button>
+    <button class="btn secondary hidden" id="nextBtn" type="button">Scan next card</button>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+  // IDs on your cards: adjust if they follow a different format.
+  // Default: up to 2 letters, 5 to 10 digits, optional trailing letter (e.g. 2301234, A0123456X).
+  const ID_PATTERN = /\b[A-Z]{0,2}\d{5,10}[A-Z]?\b/g;
+
+  const $ = (id) => document.getElementById(id);
+  const camera = $('camera'), preview = $('preview'), ocrStatus = $('ocrStatus');
+  const idInput = $('idInput'), nameInput = $('nameInput'), chips = $('chips');
+  const saveBtn = $('saveBtn'), nextBtn = $('nextBtn'), notice = $('notice'), scanBtn = $('scanBtn');
+
+  let workerPromise = null;
+  function getWorker() {
+    if (!workerPromise) {
+      workerPromise = Tesseract.createWorker('eng').then(async (w) => {
+        await w.setParameters({ tessedit_pageseg_mode: '11' }); // sparse text suits ID cards
+        return w;
+      });
+    }
+    return workerPromise;
+  }
+  getWorker().catch(() => {}); // warm up while the user lines up the card
+
+  function showNotice(kind, title, body) {
+    notice.className = 'notice ' + kind;
+    notice.innerHTML = '';
+    const h = document.createElement('h2'); h.textContent = title;
+    const p = document.createElement('p'); p.textContent = body;
+    notice.append(h, p);
+    notice.style.display = 'block';
+    notice.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function hideNotice() { notice.style.display = 'none'; }
+
+  function updateSave() { saveBtn.disabled = idInput.value.replace(/[^A-Za-z0-9]/g, '').length < 4; }
+  idInput.addEventListener('input', () => { markChip(null); updateSave(); });
+
+  // Downscale and greyscale the photo; large phone photos are slow to read.
+  function prepareImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1800, scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * scale);
+        c.height = Math.round(img.naturalHeight * scale);
+        const ctx = c.getContext('2d');
+        ctx.filter = 'grayscale(1) contrast(1.3)';
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(img.src);
+        resolve(c);
+      };
+      img.onerror = () => reject(new Error('Could not open that photo.'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  // Fix common letter/digit mix-ups inside number-heavy tokens.
+  function cleanToken(t) {
+    const digits = (t.match(/\d/g) || []).length;
+    if (t.length < 5 || digits / t.length < 0.6) return t;
+    const m = t.match(/^([A-Z]{0,2})(.*?)([A-Z]?)$/);
+    return m[1] + m[2].replace(/O/g, '0').replace(/[IL]/g, '1') + m[3];
+  }
+
+  function findIds(text) {
+    const tokens = text.toUpperCase().replace(/[^\dA-Z\s]/g, ' ').split(/\s+/).filter(Boolean).map(cleanToken);
+    const joined = tokens.join(' ');
+    const found = [...new Set(joined.match(ID_PATTERN) || [])];
+    return found.sort((a, b) => b.length - a.length);
+  }
+
+  function markChip(value) {
+    chips.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c.textContent === value)));
+  }
+  function renderChips(ids) {
+    chips.innerHTML = '';
+    if (ids.length < 2) return;
+    ids.slice(0, 6).forEach((id) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = id;
+      b.onclick = () => { idInput.value = id; markChip(id); updateSave(); };
+      chips.appendChild(b);
+    });
+    markChip(ids[0]);
+  }
+
+  camera.addEventListener('change', async () => {
+    const file = camera.files && camera.files[0];
+    if (!file) return;
+    hideNotice();
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+    scanBtn.textContent = 'Retake photo';
+    ocrStatus.textContent = 'Reading card...';
+    idInput.value = ''; chips.innerHTML = ''; updateSave();
+    try {
+      const [canvas, worker] = await Promise.all([prepareImage(file), getWorker()]);
+      const { data } = await worker.recognize(canvas);
+      const ids = findIds(data.text || '');
+      if (ids.length) {
+        idInput.value = ids[0];
+        renderChips(ids);
+        ocrStatus.textContent = ids.length > 1
+          ? 'Found ' + ids.length + ' numbers. Tap the student ID if the first one is wrong.'
+          : 'Check the ID matches the card, then save.';
+      } else {
+        ocrStatus.textContent = 'No ID found. Retake closer, or type it in.';
+        idInput.focus();
+      }
+    } catch (e) {
+      ocrStatus.textContent = 'Could not read the card. Type the ID in.';
+    }
+    updateSave();
+    camera.value = '';
+  });
+
+  saveBtn.addEventListener('click', () => {
+    if (typeof google === 'undefined' || !google.script) {
+      showNotice('err', 'Not connected', 'Open this page from its Apps Script web app link.');
+      return;
+    }
+    saveBtn.disabled = true; saveBtn.textContent = 'Checking...';
+    google.script.run
+      .withSuccessHandler((r) => {
+        saveBtn.textContent = 'Check and save';
+        const who = r.name ? r.name + ' (' + r.id + ')' : r.id;
+        if (r.status === 'new') {
+          showNotice('ok', 'Added', who + ' is new and has been saved.');
+        } else {
+          showNotice('warn', 'Already in the system',
+            who + ' was first added on ' + r.firstScanned + '. Scanned ' + r.scans + ' times in total.');
+        }
+        saveBtn.classList.add('hidden');
+        nextBtn.classList.remove('hidden');
+      })
+      .withFailureHandler((err) => {
+        saveBtn.textContent = 'Check and save';
+        updateSave();
+        showNotice('err', 'Not saved', (err && err.message) || 'Something went wrong. Try again.');
+      })
+      .checkIn(idInput.value, nameInput.value);
+  });
+
+  nextBtn.addEventListener('click', () => {
+    hideNotice();
+    idInput.value = ''; nameInput.value = ''; chips.innerHTML = '';
+    preview.style.display = 'none'; preview.removeAttribute('src');
+    scanBtn.textContent = 'Scan card';
+    ocrStatus.textContent = 'Hold the card flat, fill the frame, avoid glare.';
+    nextBtn.classList.add('hidden'); saveBtn.classList.remove('hidden');
+    updateSave();
+    camera.click();
+  });
+</script>
+</body>
+</html>
