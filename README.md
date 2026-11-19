@@ -11,9 +11,9 @@ Phone web app. Take a photo of a student card, it reads the ID on the phone (Tes
 5. **Deploy > New deployment > Web app**.
    - Execute as: **Me**
    - Who has access: **Anyone within [your organisation]** if available, otherwise **Anyone with a Google account**. Avoid "Anyone": the register holds student IDs.
-6. Authorise. On the "Google hasn't verified this app" pop-up, click **Advanced > Go to (project name) (unsafe) > Allow**; the warning is expected for your own script. Copy the web app URL, open it on the phone, and add it to the home screen.
+6. Authorise. The script asks for access to this spreadsheet only (`@OnlyCurrentDoc`). On the "Google hasn't verified this app" pop-up, click **Advanced > Go to (project name) (unsafe) > Allow**; the warning is expected for your own script. Copy the web app URL, open it on the phone, and add it to the home screen.
 
-The sheet tab **Students** is created on first save: Student ID, Name, University, First scanned, Last scanned, Scan count. A sheet made by an earlier version gets the University column added after Name on the next save.
+The sheet tab **Students** is created on first save: Student ID, Name, University, Card expiry, First scanned, Last scanned, Scan count. A sheet made by an earlier version gets the missing columns added in place on the next save. Card expiry is stored as printed; a renewed card replaces it on the next scan.
 
 The offer shown after saving (`OFFER_NEW`, `OFFER_RETURNING`) and a preset list of universities (`UNIVERSITIES`) are set at the top of `Code.gs`. University names already in the sheet are offered as suggestions, and a known name printed on the card is filled in automatically.
 
@@ -23,11 +23,11 @@ The offer shown after saving (`OFFER_NEW`, `OFFER_RETURNING`) and a preset list 
 
 1. **Ready**: scan the card, or type the details in.
 2. **Check details**: the photo beside the fields read from it. When several ID-like numbers are found, they show as chips to tap.
-3. **Already in the system**: how many times the student has been scanned, the offer they are eligible for, their university and when they were last scanned. Nothing new is written.
+3. **Already in the system**: how many times the student has been scanned, the offer they are eligible for, their university, card expiry (in red once expired) and when they were last scanned. Nothing new is written.
 4. **Added**: a new row is saved, with the offer for new students.
 5. **Manual entry**: shown when the card cannot be read. Save stays disabled until an ID is entered.
 
-The app reads the student ID from the photo. University is filled when a known university name is printed on the card; otherwise it is chosen or typed. Name is typed. Reading name and expiry needs a card layout for each university (below).
+The app reads the student ID from the photo. University is filled when a known university name is printed on the card; otherwise it is chosen or typed. Card expiry is filled from the latest date found on the card (DD/MM/YYYY, DD-MM-YY or MM/YYYY), since birth and issue dates are earlier. Name is typed. Reading the name, and dates printed in other formats, needs a card layout for each university (below).
 
 ## Card layouts for each university
 

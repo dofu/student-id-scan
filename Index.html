@@ -69,6 +69,7 @@
   .record div + div { margin-top: 12px; }
   .record dt { font-size: 14px; color: var(--muted); }
   .record dd { margin: 2px 0 0; font-weight: 500; }
+  .record dd.expired { color: var(--err-text); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -102,6 +103,10 @@
       <input id="uniInput" list="uniList" autocomplete="off" autocapitalize="words" placeholder="Choose or type">
       <datalist id="uniList"></datalist>
     </div>
+    <div class="field">
+      <label for="expiryInput">Card expiry</label>
+      <input id="expiryInput" autocomplete="off" inputmode="numeric" placeholder="DD/MM/YYYY">
+    </div>
     <button class="btn" id="saveBtn" type="button" disabled>Check and save</button>
     <label class="btn secondary" id="retakeBtn" for="camera" hidden>Retake photo</label>
   </div>
@@ -123,6 +128,7 @@
   const camera = $('camera'), preview = $('preview'), ocrStatus = $('ocrStatus');
   const photoCard = $('photoCard'), form = $('form'), result = $('result'), record = $('record');
   const idInput = $('idInput'), nameInput = $('nameInput'), uniInput = $('uniInput'), chips = $('chips');
+  const expiryInput = $('expiryInput');
   const saveBtn = $('saveBtn'), nextBtn = $('nextBtn'), notice = $('notice');
   const scanBtn = $('scanBtn'), typeBtn = $('typeBtn'), retakeBtn = $('retakeBtn');
   const hasBackend = typeof google !== 'undefined' && google.script;
@@ -159,7 +165,7 @@
   }
 
   function clearForm() {
-    idInput.value = ''; nameInput.value = ''; uniInput.value = ''; chips.innerHTML = '';
+    idInput.value = ''; nameInput.value = ''; uniInput.value = ''; expiryInput.value = ''; chips.innerHTML = '';
     updateSave();
   }
 
@@ -221,6 +227,32 @@
     return universities.find((u) => flat.includes(u.toUpperCase().replace(/[^\dA-Z]+/g, ' ').trim())) || '';
   }
 
+  // Dates on the card as DD/MM/YYYY, DD-MM-YY or MM/YYYY. The latest one is taken as the expiry,
+  // since a birth or issue date is always earlier.
+  function parseDate(str) {
+    let m = str.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+    if (m) {
+      if (+m[2] < 1 || +m[2] > 12 || +m[1] < 1 || +m[1] > 31) return null;
+      const y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+      return { date: new Date(y, +m[2] - 1, +m[1]), text: m[1].padStart(2, '0') + '/' + m[2].padStart(2, '0') + '/' + y };
+    }
+    m = str.match(/^(\d{1,2})[\/.-](\d{4})$/);
+    if (m && +m[1] >= 1 && +m[1] <= 12) return { date: new Date(+m[2], +m[1], 0), text: m[1].padStart(2, '0') + '/' + m[2] };
+    return null;
+  }
+  function findExpiry(text) {
+    const found = (text.match(/\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b|\b\d{1,2}[\/.-]\d{4}\b/g) || [])
+      .map(parseDate).filter(Boolean);
+    found.sort((a, b) => b.date - a.date);
+    return found.length ? found[0].text : '';
+  }
+  function isExpired(value) {
+    const d = parseDate(String(value || '').trim());
+    if (!d) return false;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return d.date < today;
+  }
+
   function markChip(value) {
     chips.querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c.textContent === value)));
   }
@@ -259,6 +291,7 @@
         idInput.value = ids[0];
         renderChips(ids);
         uniInput.value = findUniversity(text);
+        expiryInput.value = findExpiry(text);
         ocrStatus.textContent = 'Check the details match the card, then save.';
       }
     } catch (e) {
@@ -270,11 +303,12 @@
 
   typeBtn.addEventListener('click', () => { clearForm(); show('manual'); idInput.focus(); });
 
-  function row(label, value) {
+  function row(label, value, cls) {
     if (!value) return;
     const d = document.createElement('div');
     const t = document.createElement('dt'); t.textContent = label;
     const v = document.createElement('dd'); v.textContent = value;
+    if (cls) v.className = cls;
     d.append(t, v); record.appendChild(d);
   }
 
@@ -296,6 +330,7 @@
         } else {
           showNotice('warn', 'Already in the system', 'Scanned ' + r.scans + ' times in total.' + offer);
           row('University', r.university);
+          row('Card expiry', r.expiry, isExpired(r.expiry) ? 'expired' : '');
           row('Last scanned before this', r.lastScanned);
         }
         record.hidden = !record.children.length;
@@ -306,7 +341,7 @@
         updateSave();
         showNotice('err', 'Not saved', (err && err.message) || 'Something went wrong. Try again.');
       })
-      .checkIn(idInput.value, nameInput.value, uniInput.value);
+      .checkIn(idInput.value, nameInput.value, uniInput.value, expiryInput.value);
   });
 
   nextBtn.addEventListener('click', () => {
