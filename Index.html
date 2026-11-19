@@ -10,6 +10,7 @@
     --ok-bg: #e7f6ec; --ok-text: #135c2c; --ok-line: #9fd8b1;
     --warn-bg: #fff4dc; --warn-text: #6b4800; --warn-line: #f0cf86;
     --err-bg: #fde8e8; --err-text: #8a1c1c; --err-line: #f1a9a9;
+    --photo: #e3e9f1;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -18,73 +19,97 @@
       --ok-bg: #12301d; --ok-text: #9fe0b4; --ok-line: #24583a;
       --warn-bg: #33270b; --warn-text: #f3d48c; --warn-line: #5e4a1a;
       --err-bg: #3a1616; --err-text: #f4b0b0; --err-line: #6a2a2a;
+      --photo: #232a33;
     }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
   body {
-    font: 17px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font: 17px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
     max-width: 520px; margin: 0 auto;
   }
-  h1 { font-size: 22px; margin: 4px 0 16px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  .card {
+    display: flex; flex-direction: column; gap: 12px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px;
+  }
   .btn {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    width: 100%; min-height: 54px; padding: 12px 16px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 56px; padding: 16px; border-radius: 12px;
     font: inherit; font-weight: 600; border: 1px solid var(--brand); cursor: pointer;
-    background: var(--brand); color: var(--brand-text);
+    background: var(--brand); color: var(--brand-text); text-align: center;
   }
   .btn.secondary { background: transparent; color: var(--brand); }
-  .btn:disabled { opacity: .5; }
-  .btn + .btn { margin-top: 10px; }
+  .btn:disabled { opacity: .5; cursor: default; }
   input[type=file] { display: none; }
-  label.field { display: block; font-size: 15px; color: var(--muted); margin: 14px 0 6px; }
-  input.text {
-    width: 100%; min-height: 50px; padding: 10px 12px; font: inherit; font-size: 20px;
+  .hint { font-size: 15px; color: var(--muted); margin: 0; }
+  .field label { display: block; font-size: 15px; color: var(--muted); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 12px; font: inherit; font-size: 20px;
     border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text);
   }
+  .field input::placeholder { color: var(--muted); }
   #idInput { letter-spacing: .04em; font-variant-numeric: tabular-nums; }
-  #preview { width: 100%; border-radius: 10px; display: none; margin-bottom: 12px; }
-  .status { font-size: 15px; color: var(--muted); min-height: 1.4em; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  #preview { display: block; width: 100%; border-radius: 12px; background: var(--photo); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips:empty { display: none; }
   .chip {
-    min-height: 40px; padding: 6px 14px; border-radius: 20px; font: inherit; font-size: 16px;
+    padding: 8px 14px; border-radius: 20px; font: inherit; font-size: 16px;
     border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer;
   }
   .chip[aria-pressed=true] { border-color: var(--brand); color: var(--brand); font-weight: 600; }
-  .notice { border-radius: 14px; padding: 16px; margin-bottom: 16px; border: 1px solid; display: none; }
+  .notice { border-radius: 14px; padding: 16px; margin-bottom: 16px; border: 1px solid; }
   .notice h2 { margin: 0 0 4px; font-size: 20px; }
   .notice p { margin: 0; }
   .notice.ok { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-line); }
   .notice.warn { background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-line); }
   .notice.err { background: var(--err-bg); color: var(--err-text); border-color: var(--err-line); }
-  .hidden { display: none !important; }
+  .record { margin: 0; }
+  .record div + div { margin-top: 12px; }
+  .record dt { font-size: 14px; color: var(--muted); }
+  .record dd { margin: 2px 0 0; font-weight: 500; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
   <h1>Student ID scan</h1>
 
-  <div id="notice" class="notice" role="status" aria-live="polite"></div>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 
-  <div class="card">
-    <img id="preview" alt="Photo of the scanned card">
+  <!-- Screen 1 (ready) and screen 2 (photo taken) -->
+  <div class="card" id="photoCard">
+    <img id="preview" alt="Photo of the scanned card" hidden>
+    <p class="hint" id="ocrStatus">Hold the card flat, fill the frame, avoid glare.</p>
     <label class="btn" id="scanBtn" for="camera">Scan card</label>
-    <input id="camera" type="file" accept="image/*" capture="environment">
-    <p class="status" id="ocrStatus">Hold the card flat, fill the frame, avoid glare.</p>
+    <button class="btn secondary" id="typeBtn" type="button">Type details instead</button>
+  </div>
+  <input id="camera" type="file" accept="image/*" capture="environment">
+
+  <!-- Screens 2 and 5: details form -->
+  <div class="card" id="form" hidden>
+    <div class="field">
+      <label for="idInput">Student ID</label>
+      <input id="idInput" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type the ID as printed">
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="field">
+      <label for="nameInput">Name</label>
+      <input id="nameInput" autocomplete="off" autocapitalize="words" placeholder="As printed on the card">
+    </div>
+    <div class="field">
+      <label for="uniInput">University</label>
+      <input id="uniInput" list="uniList" autocomplete="off" autocapitalize="words" placeholder="Choose or type">
+      <datalist id="uniList"></datalist>
+    </div>
+    <button class="btn" id="saveBtn" type="button" disabled>Check and save</button>
+    <label class="btn secondary" id="retakeBtn" for="camera" hidden>Retake photo</label>
   </div>
 
-  <div class="card" id="form">
-    <label class="field" for="idInput">Student ID</label>
-    <input class="text" id="idInput" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Scan or type">
-    <div class="chips" id="chips"></div>
-
-    <label class="field" for="nameInput">Name (optional)</label>
-    <input class="text" id="nameInput" autocomplete="off" autocapitalize="words">
-
-    <div style="height:16px"></div>
-    <button class="btn" id="saveBtn" type="button" disabled>Check and save</button>
-    <button class="btn secondary hidden" id="nextBtn" type="button">Scan next card</button>
+  <!-- Screens 3 and 4: result -->
+  <div class="card" id="result" hidden>
+    <dl class="record" id="record"></dl>
+    <button class="btn" id="nextBtn" type="button">Scan next card</button>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
@@ -92,11 +117,24 @@
   // IDs on your cards: adjust if they follow a different format.
   // Default: up to 2 letters, 5 to 10 digits, optional trailing letter (e.g. 2301234, A0123456X).
   const ID_PATTERN = /\b[A-Z]{0,2}\d{5,10}[A-Z]?\b/g;
+  const TIP = 'Hold the card flat, fill the frame, avoid glare.';
 
   const $ = (id) => document.getElementById(id);
   const camera = $('camera'), preview = $('preview'), ocrStatus = $('ocrStatus');
-  const idInput = $('idInput'), nameInput = $('nameInput'), chips = $('chips');
-  const saveBtn = $('saveBtn'), nextBtn = $('nextBtn'), notice = $('notice'), scanBtn = $('scanBtn');
+  const photoCard = $('photoCard'), form = $('form'), result = $('result'), record = $('record');
+  const idInput = $('idInput'), nameInput = $('nameInput'), uniInput = $('uniInput'), chips = $('chips');
+  const saveBtn = $('saveBtn'), nextBtn = $('nextBtn'), notice = $('notice');
+  const scanBtn = $('scanBtn'), typeBtn = $('typeBtn'), retakeBtn = $('retakeBtn');
+  const hasBackend = typeof google !== 'undefined' && google.script;
+  let universities = [];
+
+  if (hasBackend) {
+    google.script.run.withSuccessHandler((list) => {
+      universities = list || [];
+      $('uniList').innerHTML = '';
+      universities.forEach((u) => { const o = document.createElement('option'); o.value = u; $('uniList').appendChild(o); });
+    }).getUniversities();
+  }
 
   let workerPromise = null;
   function getWorker() {
@@ -116,12 +154,31 @@
     const h = document.createElement('h2'); h.textContent = title;
     const p = document.createElement('p'); p.textContent = body;
     notice.append(h, p);
-    notice.style.display = 'block';
-    notice.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    notice.hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-  function hideNotice() { notice.style.display = 'none'; }
 
-  function updateSave() { saveBtn.disabled = idInput.value.replace(/[^A-Za-z0-9]/g, '').length < 4; }
+  function clearForm() {
+    idInput.value = ''; nameInput.value = ''; uniInput.value = ''; chips.innerHTML = '';
+    updateSave();
+  }
+
+  // Screen states from the design: ready, photo, failed, manual, result.
+  function show(state) {
+    notice.hidden = !['failed', 'result'].includes(state);
+    photoCard.hidden = !['ready', 'photo'].includes(state);
+    form.hidden = !['photo', 'failed', 'manual'].includes(state);
+    result.hidden = state !== 'result';
+    preview.hidden = state !== 'photo';
+    typeBtn.hidden = state !== 'ready';
+    scanBtn.textContent = state === 'photo' ? 'Retake photo' : 'Scan card';
+    scanBtn.classList.toggle('secondary', state === 'photo');
+    retakeBtn.hidden = !['failed', 'manual'].includes(state);
+    retakeBtn.textContent = state === 'failed' ? 'Retake photo' : 'Scan card';
+    if (state === 'ready') ocrStatus.textContent = TIP;
+  }
+
+  function updateSave() { saveBtn.disabled = idInput.value.replace(/[^\dA-Za-z]/g, '').length < 4; }
   idInput.addEventListener('input', () => { markChip(null); updateSave(); });
 
   // Downscale and greyscale the photo; large phone photos are slow to read.
@@ -154,9 +211,14 @@
 
   function findIds(text) {
     const tokens = text.toUpperCase().replace(/[^\dA-Z\s]/g, ' ').split(/\s+/).filter(Boolean).map(cleanToken);
-    const joined = tokens.join(' ');
-    const found = [...new Set(joined.match(ID_PATTERN) || [])];
+    const found = [...new Set(tokens.join(' ').match(ID_PATTERN) || [])];
     return found.sort((a, b) => b.length - a.length);
+  }
+
+  // Picks a known university whose name appears on the card.
+  function findUniversity(text) {
+    const flat = text.toUpperCase().replace(/[^\dA-Z]+/g, ' ');
+    return universities.find((u) => flat.includes(u.toUpperCase().replace(/[^\dA-Z]+/g, ' ').trim())) || '';
   }
 
   function markChip(value) {
@@ -174,38 +236,50 @@
     markChip(ids[0]);
   }
 
+  function failed() {
+    show('failed');
+    showNotice('err', 'Could not read the card', 'Type the details from the card, or retake the photo closer and without glare.');
+    idInput.focus();
+  }
+
   camera.addEventListener('change', async () => {
     const file = camera.files && camera.files[0];
     if (!file) return;
-    hideNotice();
+    clearForm();
     preview.src = URL.createObjectURL(file);
-    preview.style.display = 'block';
-    scanBtn.textContent = 'Retake photo';
+    show('photo');
     ocrStatus.textContent = 'Reading card...';
-    idInput.value = ''; chips.innerHTML = ''; updateSave();
     try {
       const [canvas, worker] = await Promise.all([prepareImage(file), getWorker()]);
       const { data } = await worker.recognize(canvas);
-      const ids = findIds(data.text || '');
-      if (ids.length) {
+      const text = data.text || '';
+      const ids = findIds(text);
+      if (!ids.length) { failed(); }
+      else {
         idInput.value = ids[0];
         renderChips(ids);
-        ocrStatus.textContent = ids.length > 1
-          ? 'Found ' + ids.length + ' numbers. Tap the student ID if the first one is wrong.'
-          : 'Check the ID matches the card, then save.';
-      } else {
-        ocrStatus.textContent = 'No ID found. Retake closer, or type it in.';
-        idInput.focus();
+        uniInput.value = findUniversity(text);
+        ocrStatus.textContent = 'Check the details match the card, then save.';
       }
     } catch (e) {
-      ocrStatus.textContent = 'Could not read the card. Type the ID in.';
+      failed();
     }
     updateSave();
     camera.value = '';
   });
 
+  typeBtn.addEventListener('click', () => { clearForm(); show('manual'); idInput.focus(); });
+
+  function row(label, value) {
+    if (!value) return;
+    const d = document.createElement('div');
+    const t = document.createElement('dt'); t.textContent = label;
+    const v = document.createElement('dd'); v.textContent = value;
+    d.append(t, v); record.appendChild(d);
+  }
+
   saveBtn.addEventListener('click', () => {
-    if (typeof google === 'undefined' || !google.script) {
+    if (!hasBackend) {
       showNotice('err', 'Not connected', 'Open this page from its Apps Script web app link.');
       return;
     }
@@ -213,34 +287,36 @@
     google.script.run
       .withSuccessHandler((r) => {
         saveBtn.textContent = 'Check and save';
-        const who = r.name ? r.name + ' (' + r.id + ')' : r.id;
+        const offer = r.offer ? '  Eligible: ' + r.offer : '';
+        record.innerHTML = '';
         if (r.status === 'new') {
-          showNotice('ok', 'Added', who + ' is new and has been saved.');
+          const who = r.name ? r.name + ' (' + r.id + ')' : r.id;
+          showNotice('ok', 'Added', who + ' is new and has been saved.' + offer);
+          if (r.university && !universities.includes(r.university)) universities.push(r.university);
         } else {
-          showNotice('warn', 'Already in the system',
-            who + ' was first added on ' + r.firstScanned + '. Scanned ' + r.scans + ' times in total.');
+          showNotice('warn', 'Already in the system', 'Scanned ' + r.scans + ' times in total.' + offer);
+          row('University', r.university);
+          row('Last scanned before this', r.lastScanned);
         }
-        saveBtn.classList.add('hidden');
-        nextBtn.classList.remove('hidden');
+        record.hidden = !record.children.length;
+        show('result');
       })
       .withFailureHandler((err) => {
         saveBtn.textContent = 'Check and save';
         updateSave();
         showNotice('err', 'Not saved', (err && err.message) || 'Something went wrong. Try again.');
       })
-      .checkIn(idInput.value, nameInput.value);
+      .checkIn(idInput.value, nameInput.value, uniInput.value);
   });
 
   nextBtn.addEventListener('click', () => {
-    hideNotice();
-    idInput.value = ''; nameInput.value = ''; chips.innerHTML = '';
-    preview.style.display = 'none'; preview.removeAttribute('src');
-    scanBtn.textContent = 'Scan card';
-    ocrStatus.textContent = 'Hold the card flat, fill the frame, avoid glare.';
-    nextBtn.classList.add('hidden'); saveBtn.classList.remove('hidden');
-    updateSave();
+    clearForm();
+    preview.removeAttribute('src');
+    show('ready');
     camera.click();
   });
+
+  show('ready');
 </script>
 </body>
 </html>
